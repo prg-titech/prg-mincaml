@@ -1,0 +1,26 @@
+(ocamllex
+ (modules lexer))
+
+(ocamlyacc
+ (modules parser))
+
+(library
+ (name MinCaml)
+ (public_name pmincaml.base)
+ (modules
+  (:standard \ main anchor))
+ (flags
+  (-w -4-33-40-41))
+ (libraries str)
+ (preprocess
+  (pps ppx_deriving.show))
+ (foreign_stubs (language c) (names float)))
+
+; (executable
+;  (name main)
+;  (public_name min-caml)
+;  (flags
+;   (-w -4-33-40-41))
+;  (modules Main)
+;  (package min-caml)
+;  (libraries MinCaml BacCaml x86 x64 wasm))

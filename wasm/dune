@@ -1,0 +1,8 @@
+(library
+ (name wasm)
+ (public_name pmincaml.wasm)
+ (flags
+  (-w -4-33-40-41))
+ (libraries str MinCaml)
+ (preprocess
+  (pps ppx_deriving.show)))

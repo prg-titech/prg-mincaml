@@ -1,0 +1,8 @@
+(library
+ (name x86)
+ (public_name pmincaml.x86)
+ (flags
+  (-w -4-33-40-41))
+ (libraries str MinCaml)
+ (preprocess
+  (pps ppx_deriving.show)))
