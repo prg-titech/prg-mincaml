@@ -1,8 +1,10 @@
 type bytecode =
   | CONST_INT
+  | CONST_FLOAT
   | DUP
   | POP
   | LT
+  | GT
   | EQ
   | ADD
   | SUB
@@ -17,6 +19,7 @@ type bytecode =
   | CALL_NORMAL
   | RET
   | NEWSTR
+  | PRINT
   | Literal of int
   | Lref of string
   | Ldef of string
@@ -24,9 +27,11 @@ type bytecode =
 
 let bytecodes =
   [| CONST_INT
+   ; CONST_FLOAT
    ; DUP
    ; POP
    ; LT
+   ; GT
    ; EQ
    ; ADD
    ; SUB
@@ -41,6 +46,7 @@ let bytecodes =
    ; CALL_NORMAL
    ; RET
    ; NEWSTR
+   ; PRINT
   |]
 ;;
 
@@ -87,14 +93,16 @@ let rec string_of_codes ?(i = 0) codes =
     if hasarg
     then (
       let arg, _ = string_of_code codes.(i + 1) in
-      opcode ^ ", " ^ arg ^ ",\n" ^ string_of_codes ~i:(i + 2) codes)
-    else opcode ^ ",\n" ^ string_of_codes ~i:(i + 1) codes)
+      "tla." ^ opcode ^ ", " ^ arg ^ ",\n" ^ string_of_codes ~i:(i + 2) codes)
+    else "tla." ^ opcode ^ ",\n" ^ string_of_codes ~i:(i + 1) codes)
 
 and string_of_code = function
   | CONST_INT -> "CONST_INT", true
+  | CONST_FLOAT -> "CONST_FLOAT", true
   | DUP -> "DUP", true
   | POP -> "POP", false
   | LT -> "LT", false
+  | GT -> "GT", false
   | EQ -> "EQ", false
   | ADD -> "ADD", false
   | SUB -> "SUB", false
@@ -109,6 +117,7 @@ and string_of_code = function
   | CALL_NORMAL -> "CALL_NORMAL", true
   | RET -> "RET", true
   | NEWSTR -> "NEWSTR", true
+  | PRINT -> "PRINT", false
   | Literal n -> string_of_int n, false
   | Lref _ | Ldef _ -> failwith "Lref and Ldef is not supported here"
 ;;

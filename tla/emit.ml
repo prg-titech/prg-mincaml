@@ -4,6 +4,16 @@ open Bytecodes
 
 exception NoImplementedError of string
 
+let opcode_of_binop e =
+  match e with
+  | Add _ | FAddD _ -> ADD
+  | Sub _ | FSubD _ -> SUB
+  | Mul _ | FMulD _ -> MUL
+  | Div _ | FDivD _ -> DIV
+  | Mod _ -> MOD
+  | _ -> failwith @@ Printf.sprintf "unsupported pattern %s" (show_exp e)
+;;
+
 (* generate a unique label id *)
 let gen_label, reset =
   let counter = ref 0 in
@@ -52,16 +62,15 @@ and compile_exp fname env = function
   | Nop -> []
   | Set i -> compile_id_or_imm env (C i)
   | Mov var -> compile_id_or_imm env (V var)
-  | Add (x, y) ->
-    compile_id_or_imm env (V x) @ compile_id_or_imm (shift_env env) y @ [ ADD ]
-  | Sub (x, y) ->
-    compile_id_or_imm env (V x) @ compile_id_or_imm (shift_env env) y @ [ SUB ]
-  | Mul (x, y) ->
-    compile_id_or_imm env (V x) @ compile_id_or_imm (shift_env env) y @ [ MUL ]
-  | Div (x, y) ->
-    compile_id_or_imm env (V x) @ compile_id_or_imm (shift_env env) y @ [ DIV ]
-  | Mod (x, y) ->
-    compile_id_or_imm env (V x) @ compile_id_or_imm (shift_env env) y @ [ MOD ]
+  | FMovD var -> compile_id_or_imm env (V var)
+  | (Add (x, y) | Sub (x, y) | Mul (x, y) | Div (x, y) | Mod (x, y)) as e ->
+    compile_id_or_imm env (V x)
+    @ compile_id_or_imm (shift_env env) y
+    @ [ opcode_of_binop e ]
+  | (FAddD (x, y) | FSubD (x, y) | FMulD (x, y) | FDivD (x, y)) as e ->
+    compile_id_or_imm env (V x)
+    @ compile_id_or_imm (shift_env env) (V y)
+    @ [ opcode_of_binop e ]
   | IfEq (x, y, then_exp, else_exp) ->
     let l2, l1 = gen_label (), gen_label () in
     compile_id_or_imm env (V x)
@@ -84,6 +93,17 @@ and compile_exp fname env = function
     @ [ Ldef l1 ]
     @ compile_t fname env else_exp
     @ [ Ldef l2 ]
+  | IfGE (x, y, then_exp, else_exp) ->
+    let l2, l1 = gen_label (), gen_label () in
+    compile_id_or_imm env (V x)
+    @ compile_id_or_imm (shift_env env) y
+    @ [ GT ]
+    @ [ JUMP_IF; Lref l1 ]
+    @ compile_t fname env then_exp
+    @ [ JUMP; Lref l2 ]
+    @ [ Ldef l1 ]
+    @ compile_t fname env then_exp
+    @ [ Ldef l2 ]
   | CallDir (Id.L "min_caml_print_int", args, _) -> []
   | CallDir (Id.L var, args, _) ->
     (args
@@ -94,7 +114,7 @@ and compile_exp fname env = function
     |> fst
     |> List.rev
     |> List.flatten)
-    @ [ CALL; Lref var; ]
+    @ [ CALL; Lref var ]
   | exp ->
     raise
       (NoImplementedError
