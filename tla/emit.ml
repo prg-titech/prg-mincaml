@@ -46,19 +46,22 @@ let arity_of_env env =
 
 let compile_id_or_imm env = function
   | C n -> [ CONST_INT; Literal n ]
-  | V x -> [ DUP; Literal (lookup env x) ]
+  | V x ->
+    let n = lookup env x in
+    if n = 0 then [ DUP ] else [ DUPN; Literal n ]
 ;;
 
 let rec compile_t fname env =
   let open Asm in
   function
-  | Ans (CallDir (Id.L fname', args, fargs) as e) -> compile_exp fname env e
   | Ans e -> compile_exp fname env e
   | Let ((x, _), exp, t) ->
     let newenv = extend_env env x in
-    compile_exp fname env exp @ compile_t fname newenv t @ [ POP ]
+    Asm.show_exp exp |> print_string;
+    compile_exp fname env exp @ compile_t fname newenv t
 
-and compile_exp fname env = function
+and compile_exp fname env e =
+  match e with
   | Nop -> []
   | Set i -> compile_id_or_imm env (C i)
   | Mov var -> compile_id_or_imm env (V var)
@@ -88,10 +91,10 @@ and compile_exp fname env = function
     @ compile_id_or_imm (shift_env env) y
     @ [ LT ]
     @ [ JUMP_IF; Lref l1 ]
-    @ compile_t fname env then_exp
+    @ compile_t fname env else_exp
     @ [ JUMP; Lref l2 ]
     @ [ Ldef l1 ]
-    @ compile_t fname env else_exp
+    @ compile_t fname env then_exp
     @ [ Ldef l2 ]
   | IfGE (x, y, then_exp, else_exp) ->
     let l2, l1 = gen_label (), gen_label () in
@@ -99,12 +102,12 @@ and compile_exp fname env = function
     @ compile_id_or_imm (shift_env env) y
     @ [ GT ]
     @ [ JUMP_IF; Lref l1 ]
-    @ compile_t fname env then_exp
+    @ compile_t fname env else_exp
     @ [ JUMP; Lref l2 ]
     @ [ Ldef l1 ]
     @ compile_t fname env then_exp
     @ [ Ldef l2 ]
-  | CallDir (Id.L "min_caml_print_int", args, _) -> []
+  | CallDir (Id.L "min_caml_print_int", args, _) -> [ PRINT ]
   | CallDir (Id.L var, args, _) ->
     (args
     |> List.fold_left
