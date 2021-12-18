@@ -66,7 +66,7 @@ let rec pp_bytecode ?(i = 0) insts =
     | [] -> ()
     | hd :: tl ->
       (match hd with
-      | CONST_INT | DUP | JUMP | JUMP_IF | RET | CALL ->
+      | CONST_INT | DUPN | JUMP | JUMP_IF | RET | CALL ->
         pp_pc ();
         print_string (show_bytecode hd);
         print_string " ";

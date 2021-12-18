@@ -4,6 +4,7 @@ open TLA
 type backend =
   | Bytecode
   | PPBytecode
+  | Virtual
 
 let backend_type = ref Bytecode
 
@@ -19,10 +20,12 @@ let rec lexbuf oc l =
   |> Closure.f
   |> Virtual.f
   |> Simm.f
-  |> fun p ->
-  match !backend_type with
-  | PPBytecode -> p |> Emit.f |> Bytecodes.pp_bytecode
-  | Bytecode -> p |> Emit.f |> Bytecodes.pp_tla_bytecode
+  |> function
+  | p ->
+    (match !backend_type with
+    | PPBytecode -> p |> Emit.f |> Bytecodes.pp_bytecode
+    | Bytecode -> p |> Emit.f |> Bytecodes.pp_tla_bytecode
+    | Virtual -> Asm.show_prog p |> print_string)
 ;;
 
 let main f =
@@ -52,6 +55,7 @@ let () =
     ; ( "-pp"
       , Arg.Unit (fun _ -> backend_type := PPBytecode)
       , "emit bytecode for BacCaml" )
+    ; "-v", Arg.Unit (fun _ -> backend_type := Virtual), "emit MinCaml IR"
     ]
     (fun s -> files := !files @ [ s ])
     (Sys.argv.(0) ^ " [-options] filename.ml");
