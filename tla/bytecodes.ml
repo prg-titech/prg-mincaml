@@ -2,6 +2,7 @@ type bytecode =
   | CONST_INT
   | CONST_FLOAT
   | DUP
+  | DUPN
   | POP
   | LT
   | GT
@@ -29,6 +30,7 @@ let bytecodes =
   [| CONST_INT
    ; CONST_FLOAT
    ; DUP
+   ; DUPN
    ; POP
    ; LT
    ; GT
@@ -99,7 +101,8 @@ let rec string_of_codes ?(i = 0) codes =
 and string_of_code = function
   | CONST_INT -> "CONST_INT", true
   | CONST_FLOAT -> "CONST_FLOAT", true
-  | DUP -> "DUP", true
+  | DUP -> "DUP", false
+  | DUPN -> "DUPN", true
   | POP -> "POP", false
   | LT -> "LT", false
   | GT -> "GT", false
