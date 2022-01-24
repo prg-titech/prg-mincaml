@@ -20,7 +20,7 @@ let gen_label, reset =
    numbers *)
 let lookup env var =
   match
-    List.find_opt (fun (_, v) -> var = v) (List.mapi (fun idx v -> idx, v) env)
+    List.find_opt ~f:(fun (_, v) -> var = v) (List.mapi ~f:(fun idx v -> idx, v) env)
   with
   | Some v -> fst v
   | None -> failwith (Printf.sprintf "%s not found" var)
