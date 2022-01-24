@@ -57,11 +57,9 @@ let rec compile_t fname env =
   | Ans e -> compile_exp fname env e
   | Let ((x, _), exp, t) ->
     let newenv = extend_env env x in
-    Asm.show_exp exp |> print_string;
-    compile_exp fname env exp @ compile_t fname newenv t
+    compile_exp fname env exp @ compile_t fname newenv t @ [ POP1 ]
 
-and compile_exp fname env e =
-  match e with
+and compile_exp fname env = function
   | Nop -> []
   | Set i -> compile_id_or_imm env (C i)
   | Mov var -> compile_id_or_imm env (V var)

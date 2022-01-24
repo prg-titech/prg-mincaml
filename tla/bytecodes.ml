@@ -4,6 +4,7 @@ type bytecode =
   | DUP
   | DUPN
   | POP
+  | POP1
   | LT
   | GT
   | EQ
@@ -32,6 +33,7 @@ let bytecodes =
    ; DUP
    ; DUPN
    ; POP
+   ; POP1
    ; LT
    ; GT
    ; EQ
@@ -104,6 +106,7 @@ and string_of_code = function
   | DUP -> "DUP", false
   | DUPN -> "DUPN", true
   | POP -> "POP", false
+  | POP1 -> "POP1", false
   | LT -> "LT", false
   | GT -> "GT", false
   | EQ -> "EQ", false
