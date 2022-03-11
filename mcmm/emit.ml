@@ -75,7 +75,7 @@ let rec compile_t fname env =
   | Ans (CallDir (Id.L fname', args, fargs) as e) ->
     if not @@ !Config.tail_opt_flg
     then compile_exp fname env e
-    else if fname' = fname && !tail_opt_flg
+    else if fname' = fname
     then (
       let old_arity, local_size = arity_of_env env in
       let new_arity = List.length args in
