@@ -54,10 +54,35 @@ let compile_id_or_imm env = function
 let rec compile_t fname env =
   let open Asm in
   function
+  | Ans (CallDir (Id.L fname', args, fargs) as e) ->
+    if not @@ !Config.flg_tail_opt
+    then compile_exp fname env e
+    else if fname' = fname
+    then (
+      let old_arity, local_size = arity_of_env env in
+      let new_arity = List.length args in
+      (List.fold_left
+         (fun (rev_code_list, env) v ->
+           compile_id_or_imm env (V v) :: rev_code_list, shift_env env)
+         ([], env)
+         args
+      |> fst
+      |> List.rev
+      |> List.flatten)
+      @ (if !Config.flg_frame_reset
+        then
+          [ FRAME_RESET
+          ; Literal old_arity
+          ; Literal local_size
+          ; Literal new_arity
+          ]
+        else [])
+      @ [ JUMP; Lref fname ])
+    else compile_exp fname env e
   | Ans e -> compile_exp fname env e
   | Let ((x, _), exp, t) ->
-    let newenv = extend_env env x in
-    compile_exp fname env exp @ compile_t fname newenv t @ [ POP1 ]
+    let ex_env = extend_env env x in
+    compile_exp fname env exp @ compile_t fname ex_env t @ [ POP1 ]
 
 and compile_exp fname env = function
   | Nop -> []
@@ -115,7 +140,7 @@ and compile_exp fname env = function
     |> fst
     |> List.rev
     |> List.flatten)
-    @ [ CALL; Lref var ]
+    @ [ CALL; Lref var; Literal (List.length args) ]
   | exp ->
     raise
       (NoImplementedError
