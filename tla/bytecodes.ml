@@ -22,6 +22,7 @@ type bytecode =
   | RET
   | NEWSTR
   | PRINT
+  | FRAME_RESET
   | Literal of int
   | Lref of string
   | Ldef of string
@@ -51,6 +52,7 @@ let bytecodes =
    ; RET
    ; NEWSTR
    ; PRINT
+   ; FRAME_RESET
   |]
 ;;
 
@@ -93,38 +95,40 @@ let rec string_of_codes ?(i = 0) codes =
   then ""
   else (
     let code = codes.(i) in
-    let opcode, hasarg = string_of_code code in
-    if hasarg
-    then (
-      let arg, _ = string_of_code codes.(i + 1) in
-      "tla." ^ opcode ^ ", " ^ arg ^ ",\n" ^ string_of_codes ~i:(i + 2) codes)
-    else "tla." ^ opcode ^ ",\n" ^ string_of_codes ~i:(i + 1) codes)
+    let opcode, argnum = string_of_code code in
+    let str = ref "" in
+    for j = i + 1 to i + argnum do
+      let opcode, argnum = string_of_code codes.(j) in
+      str := !str ^ opcode ^ ", "
+    done;
+    (Printf.sprintf "\ttla.%s, %s\n" opcode !str) ^ string_of_codes ~i:(i + argnum + 1) codes)
 
 and string_of_code = function
-  | CONST_INT -> "CONST_INT", true
-  | CONST_FLOAT -> "CONST_FLOAT", true
-  | DUP -> "DUP", false
-  | DUPN -> "DUPN", true
-  | POP -> "POP", false
-  | POP1 -> "POP1", false
-  | LT -> "LT", false
-  | GT -> "GT", false
-  | EQ -> "EQ", false
-  | ADD -> "ADD", false
-  | SUB -> "SUB", false
-  | MUL -> "MUL", false
-  | DIV -> "DIV", false
-  | MOD -> "MOD", false
-  | EXIT -> "EXIT", false
-  | JUMP -> "JUMP", true
-  | JUMP_IF -> "JUMP_IF", true
-  | CALL -> "CALL", true
-  | CALL_JIT -> "CALL_JIT", true
-  | CALL_NORMAL -> "CALL_NORMAL", true
-  | RET -> "RET", true
-  | NEWSTR -> "NEWSTR", true
-  | PRINT -> "PRINT", false
-  | Literal n -> string_of_int n, false
+  | CONST_INT -> "CONST_INT", 1
+  | CONST_FLOAT -> "CONST_FLOAT", 1
+  | DUP -> "DUP", 0
+  | DUPN -> "DUPN", 1
+  | POP -> "POP", 0
+  | POP1 -> "POP1", 0
+  | LT -> "LT", 0
+  | GT -> "GT", 0
+  | EQ -> "EQ", 0
+  | ADD -> "ADD", 0
+  | SUB -> "SUB", 0
+  | MUL -> "MUL", 0
+  | DIV -> "DIV", 0
+  | MOD -> "MOD", 0
+  | EXIT -> "EXIT", 0
+  | JUMP -> "JUMP", 1
+  | JUMP_IF -> "JUMP_IF", 1
+  | CALL -> "CALL", 2
+  | CALL_JIT -> "CALL_JIT", 2
+  | CALL_NORMAL -> "CALL_NORMAL", 2
+  | RET -> "RET", 1
+  | NEWSTR -> "NEWSTR", 1
+  | PRINT -> "PRINT", 0
+  | Literal n -> string_of_int n, 0
+  | FRAME_RESET -> "FRAME_RESET", 3
   | Lref _ | Ldef _ -> failwith "Lref and Ldef is not supported here"
 ;;
 
