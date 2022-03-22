@@ -22,6 +22,8 @@ let rec lexbuf oc l =
   |> Simm.f
   |> function
   | p ->
+    if !Config.flg_emit_virtual then (
+      Asm.show_prog p |> prerr_string; prerr_newline ());
     (match !backend_type with
     | PPBytecode -> p |> Emit.f |> Bytecodes.pp_bytecode
     | Bytecode -> p |> Emit.f |> Bytecodes.pp_tla_bytecode
@@ -55,6 +57,9 @@ let () =
     ; ( "-pp"
       , Arg.Unit (fun _ -> backend_type := PPBytecode)
       , "emit bytecode for BacCaml" )
+    ; ( "-virt"
+      , Arg.Unit (fun _ -> Config.flg_emit_virtual := true)
+      , "emit a MinCaml IR")
     ; "-v", Arg.Unit (fun _ -> backend_type := Virtual), "emit MinCaml IR"
     ]
     (fun s -> files := !files @ [ s ])

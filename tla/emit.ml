@@ -4,6 +4,20 @@ open Bytecodes
 
 exception NoImplementedError of string
 
+module Debug = struct
+  let print_env env =
+    prerr_string "env: ";
+    prerr_string "[";
+    List.iter
+      (fun x ->
+        prerr_string x;
+        prerr_string ", ")
+      env;
+    prerr_string "]";
+    prerr_newline ()
+  ;;
+end
+
 let opcode_of_binop e =
   match e with
   | Add _ | FAddD _ -> ADD
@@ -48,10 +62,12 @@ let compile_id_or_imm env = function
   | C n -> [ CONST_INT; Literal n ]
   | V x ->
     let n = lookup env x in
+    print_endline @@ Printf.sprintf "Get %s, DUP %d" x n;
     if n = 0 then [ DUP ] else [ DUPN; Literal n ]
 ;;
 
 let rec compile_t fname env =
+  Debug.print_env env;
   let open Asm in
   function
   | Ans (CallDir (Id.L fname', args, fargs) as e) ->
