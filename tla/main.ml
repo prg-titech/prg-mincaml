@@ -4,7 +4,6 @@ open TLA
 type backend =
   | Bytecode
   | PPBytecode
-  | Virtual
 
 let backend_type = ref Bytecode
 
@@ -26,8 +25,7 @@ let rec lexbuf oc l =
       Asm.show_prog p |> prerr_string; prerr_newline ());
     (match !backend_type with
     | PPBytecode -> p |> Emit.f |> Bytecodes.pp_bytecode
-    | Bytecode -> p |> Emit.f |> Bytecodes.pp_tla_bytecode
-    | Virtual -> Asm.show_prog p |> print_string)
+    | Bytecode -> p |> Emit.f |> Bytecodes.pp_tla_bytecode)
 ;;
 
 let main f =
@@ -60,7 +58,7 @@ let () =
     ; ( "-virt"
       , Arg.Unit (fun _ -> Config.flg_emit_virtual := true)
       , "emit a MinCaml IR")
-    ; "-v", Arg.Unit (fun _ -> backend_type := Virtual), "emit MinCaml IR"
+    ; ("-fr", Arg.Unit (fun _ -> Config.flg_frame_reset := true), "enable FRAME_RESET")
     ]
     (fun s -> files := !files @ [ s ])
     (Sys.argv.(0) ^ " [-options] filename.ml");

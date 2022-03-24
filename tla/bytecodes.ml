@@ -23,6 +23,9 @@ type bytecode =
   | NEWSTR
   | PRINT
   | FRAME_RESET
+  | BUILD_LIST
+  | LOAD
+  | STORE
   | Literal of int
   | Lref of string
   | Ldef of string
@@ -53,6 +56,9 @@ let bytecodes =
    ; NEWSTR
    ; PRINT
    ; FRAME_RESET
+   ; BUILD_LIST
+   ; LOAD
+   ; STORE
   |]
 ;;
 
@@ -76,9 +82,9 @@ let rec pp_bytecode ?(i = 0) insts =
         print_string " ";
         pp_bytecode' ~i:0 tl
       | Literal n ->
-        print_string "\t";
+        print_string "    ";
         print_string (show_bytecode hd);
-        if i = 0 then print_newline () else print_string "\t";
+        if i = 0 then print_newline () else print_string "    ";
         incr pp_bytecode_counter;
         pp_bytecode' ~i:(i - 1) tl
       | _ ->
@@ -101,7 +107,7 @@ let rec string_of_codes ?(i = 0) codes =
       let opcode, argnum = string_of_code codes.(j) in
       str := !str ^ opcode ^ ", "
     done;
-    (Printf.sprintf "\ttla.%s, %s\n" opcode !str) ^ string_of_codes ~i:(i + argnum + 1) codes)
+    (Printf.sprintf "    tla.%s, %s\n" opcode !str) ^ string_of_codes ~i:(i + argnum + 1) codes)
 
 and string_of_code = function
   | CONST_INT -> "CONST_INT", 1

@@ -41,20 +41,28 @@ let gen_label, reset =
 (* compilation environment maps local variable names to local variable
    numbers *)
 let lookup env var =
-  fst (List.find (fun (_, v) -> var = v) (List.mapi (fun idx v -> idx, v) env))
+  try
+    List.mapi (fun idx v -> idx, v) env
+    |> List.find (fun (_, v) -> var = v)
+    |> fst
+  with
+  | Not_found ->
+    Printf.eprintf "var %s is not found" var;
+    raise Not_found
 ;;
 
 let extend_env env var = var :: env
 let shift_env env = extend_env env "*dummy*"
 let downshift_env env = List.tl env
 let return_address_marker = "$ret_addr"
+let return_value_marker = "$ret_val"
 let build_arg_env args = return_address_marker :: List.rev args
 
 (* computes the number of arguments to this frame. The stack has a shape like
    [...local vars...][ret addr][..args...], the return address position from the
    top indicates the number of local variables on top of the return address. *)
 let arity_of_env env =
-  let num_local_vars = lookup env return_address_marker in
+  let num_local_vars = lookup env return_value_marker in
   List.length env - num_local_vars - 1, num_local_vars
 ;;
 
@@ -62,7 +70,7 @@ let compile_id_or_imm env = function
   | C n -> [ CONST_INT; Literal n ]
   | V x ->
     let n = lookup env x in
-    print_endline @@ Printf.sprintf "Get %s, DUP %d" x n;
+    Printf.eprintf "Get %s, DUP %d" x n; prerr_newline ();
     if n = 0 then [ DUP ] else [ DUPN; Literal n ]
 ;;
 
@@ -74,26 +82,28 @@ let rec compile_t fname env =
     if not @@ !Config.flg_tail_opt
     then compile_exp fname env e
     else if fname' = fname
-    then (
-      let old_arity, local_size = arity_of_env env in
-      let new_arity = List.length args in
-      (List.fold_left
-         (fun (rev_code_list, env) v ->
-           compile_id_or_imm env (V v) :: rev_code_list, shift_env env)
-         ([], env)
-         args
-      |> fst
-      |> List.rev
-      |> List.flatten)
-      @ (if !Config.flg_frame_reset
-        then
-          [ FRAME_RESET
+    then
+      (if !Config.flg_frame_reset
+      then (
+        let old_arity, local_size = arity_of_env env in
+        let new_arity = List.length args in
+        Printf.eprintf "FRAME_RESET old_arity: %d local_size: %d new_arity: %d\n"
+            old_arity local_size new_arity;
+        (List.fold_left
+           (fun (rev_code_list, env) v ->
+             compile_id_or_imm env (V v) :: rev_code_list, shift_env env)
+           ([], env)
+           args
+        |> fst
+        |> List.rev
+        |> List.flatten)
+        @ [ FRAME_RESET
           ; Literal old_arity
           ; Literal local_size
           ; Literal new_arity
-          ]
-        else [])
-      @ [ JUMP; Lref fname ])
+          ])
+      else [])
+      @ [ JUMP; Lref fname ]
     else compile_exp fname env e
   | Ans e -> compile_exp fname env e
   | Let ((x, _), exp, t) ->
@@ -148,9 +158,11 @@ and compile_exp fname env = function
     @ [ Ldef l2 ]
   | CallDir (Id.L "min_caml_print_int", args, _) -> [ PRINT ]
   | CallDir (Id.L var, args, _) ->
+    Printf.eprintf "CALL %s %d\n" var (List.length args);
     (args
     |> List.fold_left
          (fun (rev_code_list, env) v ->
+           Debug.print_env env;
            compile_id_or_imm env (V v) :: rev_code_list, shift_env env)
          ([], env)
     |> fst
