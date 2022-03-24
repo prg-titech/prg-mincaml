@@ -1,4 +1,4 @@
 let rec sum x =
-  if x < 2 then 1 else
+  if x < 1 then x else
   x + sum (x - 1) in
-print_int (sum 3000)
+print_int (sum 10)

@@ -1,5 +1,6 @@
-let%tj rec gcd m n =
-  if m <= 0 then n else
-  if m <= n then gcd m (n-m) else
+let rec gcd m n =
+  if m < 1 then n else
+  if m < n + 1 then gcd m (n-m) else
   gcd n (m - n) in
-print_int (gcd 216 337500)
+print_int (gcd 216 237)
+
