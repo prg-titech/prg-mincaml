@@ -13,8 +13,8 @@ module Debug = struct
         prerr_string x;
         prerr_string ", ")
       env;
-    prerr_string "]";
-    prerr_newline ()
+    prerr_string "]\n";
+    flush stderr;
   ;;
 end
 
@@ -62,7 +62,7 @@ let build_arg_env args = return_address_marker :: List.rev args
    [...local vars...][ret addr][..args...], the return address position from the
    top indicates the number of local variables on top of the return address. *)
 let arity_of_env env =
-  let num_local_vars = lookup env return_value_marker in
+  let num_local_vars = lookup env return_address_marker in
   List.length env - num_local_vars - 1, num_local_vars
 ;;
 
@@ -70,7 +70,7 @@ let compile_id_or_imm env = function
   | C n -> [ CONST_INT; Literal n ]
   | V x ->
     let n = lookup env x in
-    Printf.eprintf "Get %s, DUP %d" x n; prerr_newline ();
+    prerr_endline @@ Printf.sprintf "Get %s, DUP %d" x n;
     if n = 0 then [ DUP ] else [ DUPN; Literal n ]
 ;;
 
