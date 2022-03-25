@@ -17,6 +17,7 @@ type bytecode =
   | JUMP
   | JUMP_IF
   | CALL
+  | CALL_ASSEMBLER
   | CALL_JIT
   | CALL_NORMAL
   | RET
@@ -50,6 +51,7 @@ let bytecodes =
    ; JUMP
    ; JUMP_IF
    ; CALL
+   ; CALL_ASSEMBLER
    ; CALL_JIT
    ; CALL_NORMAL
    ; RET
@@ -128,6 +130,7 @@ and string_of_code = function
   | JUMP -> "JUMP", 1
   | JUMP_IF -> "JUMP_IF", 1
   | CALL -> "CALL", 2
+  | CALL_ASSEMBLER -> "CALL_ASSEMBLER", 2
   | CALL_JIT -> "CALL_JIT", 2
   | CALL_NORMAL -> "CALL_NORMAL", 2
   | RET -> "RET", 1
@@ -135,6 +138,9 @@ and string_of_code = function
   | PRINT -> "PRINT", 0
   | Literal n -> string_of_int n, 0
   | FRAME_RESET -> "FRAME_RESET", 3
+  | LOAD -> "LOAD", 0
+  | STORE -> "STORE", 0
+  | BUILD_LIST -> "BUILD_LIST", 0
   | Lref _ | Ldef _ -> failwith "Lref and Ldef is not supported here"
 ;;
 

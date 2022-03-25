@@ -14,7 +14,7 @@ module Debug = struct
         prerr_string ", ")
       env;
     prerr_string "]\n";
-    flush stderr;
+    flush stderr
   ;;
 end
 
@@ -87,8 +87,11 @@ let rec compile_t fname env =
       then (
         let old_arity, local_size = arity_of_env env in
         let new_arity = List.length args in
-        Printf.eprintf "FRAME_RESET old_arity: %d local_size: %d new_arity: %d\n"
-            old_arity local_size new_arity;
+        Printf.eprintf
+          "FRAME_RESET old_arity: %d local_size: %d new_arity: %d\n"
+          old_arity
+          local_size
+          new_arity;
         (List.fold_left
            (fun (rev_code_list, env) v ->
              compile_id_or_imm env (V v) :: rev_code_list, shift_env env)
@@ -123,6 +126,13 @@ and compile_exp fname env = function
     compile_id_or_imm env (V x)
     @ compile_id_or_imm (shift_env env) (V y)
     @ [ opcode_of_binop e ]
+  | Ld (x, y, n) -> (* target ary, index, offset *)
+    compile_id_or_imm env (V x) @ compile_id_or_imm (shift_env env) y @ [ LOAD ]
+  | St (x, y, z, n) -> (* value, taget ary, index, offset *)
+    compile_id_or_imm env (V x)
+    @ compile_id_or_imm (shift_env env) (V y)
+    @ compile_id_or_imm (shift_env (shift_env env)) z
+    @ [ STORE ]
   | IfEq (x, y, then_exp, else_exp) ->
     let l2, l1 = gen_label (), gen_label () in
     compile_id_or_imm env (V x)
@@ -156,7 +166,12 @@ and compile_exp fname env = function
     @ [ Ldef l1 ]
     @ compile_t fname env then_exp
     @ [ Ldef l2 ]
-  | CallDir (Id.L "min_caml_print_int", args, _) -> [ PRINT ]
+  | CallDir (Id.L "min_caml_print_int", args, fargs) -> [ PRINT ]
+  | CallDir (Id.L "min_caml_create_array", args, fargs) ->
+    let size, init = List.nth args 0, List.nth args 1 in
+    compile_id_or_imm env (V init)
+    @ compile_id_or_imm (shift_env env) (V size)
+    @ [ BUILD_LIST ]
   | CallDir (Id.L var, args, _) ->
     Printf.eprintf "CALL %s %d\n" var (List.length args);
     (args
@@ -168,7 +183,10 @@ and compile_exp fname env = function
     |> fst
     |> List.rev
     |> List.flatten)
-    @ [ CALL; Lref var; Literal (List.length args) ]
+    @
+    if !Config.flg_call_assembler
+    then [ CALL_ASSEMBLER; Lref var; Literal (List.length args) ]
+    else [ CALL; Lref var; Literal (List.length args) ]
   | exp ->
     raise
       (NoImplementedError
