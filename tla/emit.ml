@@ -66,7 +66,20 @@ let arity_of_env env =
   List.length env - num_local_vars - 1, num_local_vars
 ;;
 
+(* mask the lower rhs bits of lhs *)
+let (|%|) lhs rhs =
+  lhs land ((1 lsl rhs) - 1)
+;;
+
 let compile_id_or_imm env = function
+  | C n when n >= (1 lsl 8) ->
+    let n0, n1, n2, n3 = n, n |%| 24, n |%| 16, n |%| 8 in
+    let a = n0 lsr 24 in
+    let b = n1 lsr 16 in
+    let c = n2 lsr 8 in
+    let d = n3 in
+    assert (((a lsl 24) lor (b lsl 16) lor (c lsl 8) lor n3) == n);
+    [ CONST_N; Literal a; Literal b; Literal c; Literal d]
   | C n -> [ CONST_INT; Literal n ]
   | V x ->
     let n = lookup env x in
@@ -127,7 +140,9 @@ and compile_exp fname env = function
     @ compile_id_or_imm (shift_env env) (V y)
     @ [ opcode_of_binop e ]
   | Ld (x, y, n) -> (* target ary, index, offset *)
-    compile_id_or_imm env (V x) @ compile_id_or_imm (shift_env env) y @ [ LOAD ]
+    compile_id_or_imm env (V x)
+    @ compile_id_or_imm (shift_env env) y
+    @ [ LOAD ]
   | St (x, y, z, n) -> (* value, taget ary, index, offset *)
     compile_id_or_imm env (V x)
     @ compile_id_or_imm (shift_env env) (V y)
