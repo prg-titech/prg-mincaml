@@ -18,6 +18,19 @@ module Debug = struct
   ;;
 end
 
+(* mask the lower rhs bits of lhs *)
+let ( |%| ) lhs rhs = lhs land ((1 lsl rhs) - 1)
+
+let devide_large_num n =
+  let n0, n1, n2, n3 = n, n |%| 24, n |%| 16, n |%| 8 in
+  let a = n0 lsr 24 in
+  let b = n1 lsr 16 in
+  let c = n2 lsr 8 in
+  let d = n3 in
+  assert ((a lsl 24) lor (b lsl 16) lor (c lsl 8) lor n3 == n);
+  a, b, c, d
+;;
+
 let opcode_of_binop e =
   match e with
   | Add _ | FAddD _ -> ADD
@@ -66,20 +79,10 @@ let arity_of_env env =
   List.length env - num_local_vars - 1, num_local_vars
 ;;
 
-(* mask the lower rhs bits of lhs *)
-let (|%|) lhs rhs =
-  lhs land ((1 lsl rhs) - 1)
-;;
-
 let compile_id_or_imm env = function
-  | C n when n >= (1 lsl 8) ->
-    let n0, n1, n2, n3 = n, n |%| 24, n |%| 16, n |%| 8 in
-    let a = n0 lsr 24 in
-    let b = n1 lsr 16 in
-    let c = n2 lsr 8 in
-    let d = n3 in
-    assert (((a lsl 24) lor (b lsl 16) lor (c lsl 8) lor n3) == n);
-    [ CONST_N; Literal a; Literal b; Literal c; Literal d]
+  | C n when n >= 1 lsl 8 ->
+    let a, b, c, d = devide_large_num n in
+    [ CONST_N; LLiteral (a, b, c, d) ]
   | C n -> [ CONST_INT; Literal n ]
   | V x ->
     let n = lookup env x in

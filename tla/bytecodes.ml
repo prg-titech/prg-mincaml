@@ -1,3 +1,7 @@
+open Printf
+
+let sp = sprintf
+
 type bytecode =
   | CONST_INT
   | CONST_FLOAT
@@ -16,19 +20,26 @@ type bytecode =
   | MOD
   | EXIT
   | JUMP
+  | JUMP_N
   | JUMP_IF
+  | JUMP_IF_N
   | CALL
+  | CALL_N
   | CALL_ASSEMBLER
-  | CALL_JIT
-  | CALL_NORMAL
+  | CALL_N_ASSEMBLER
+  | CALL_TIER2
+  | CALL_TIER0
   | RET
   | NEWSTR
   | PRINT
+  | RAND_INT
   | FRAME_RESET
   | BUILD_LIST
   | LOAD
   | STORE
   | Literal of int
+  | LLiteral of int * int * int * int
+  | FLiteral of float
   | Lref of string
   | Ldef of string
 [@@deriving show]
@@ -53,12 +64,15 @@ let bytecodes =
    ; JUMP
    ; JUMP_IF
    ; CALL
+   ; CALL_N
    ; CALL_ASSEMBLER
-   ; CALL_JIT
-   ; CALL_NORMAL
+   ; CALL_N_ASSEMBLER
+   ; CALL_TIER2
+   ; CALL_TIER0
    ; RET
    ; NEWSTR
    ; PRINT
+   ; RAND_INT
    ; FRAME_RESET
    ; BUILD_LIST
    ; LOAD
@@ -116,7 +130,7 @@ let rec string_of_codes ?(i = 0) codes =
 and string_of_code = function
   | CONST_INT -> "CONST_INT", 1
   | CONST_FLOAT -> "CONST_FLOAT", 1
-  | CONST_N -> "CONST_N", 4
+  | CONST_N (* LLiteral *) -> "CONST_N", 1
   | DUP -> "DUP", 0
   | DUPN -> "DUPN", 1
   | POP -> "POP", 0
@@ -131,15 +145,22 @@ and string_of_code = function
   | MOD -> "MOD", 0
   | EXIT -> "EXIT", 0
   | JUMP -> "JUMP", 1
+  | JUMP_N -> "JUMP_N", 1
   | JUMP_IF -> "JUMP_IF", 1
+  | JUMP_IF_N -> "JUMP_IFN_", 1
   | CALL -> "CALL", 2
+  | CALL_N -> "CALL_N", 2
   | CALL_ASSEMBLER -> "CALL_ASSEMBLER", 2
-  | CALL_JIT -> "CALL_JIT", 2
-  | CALL_NORMAL -> "CALL_NORMAL", 2
+  | CALL_N_ASSEMBLER -> "CALL_N_ASSEMBLER", 2
+  | CALL_TIER2 -> "CALL_TIER2", 2
+  | CALL_TIER0 -> "CALL_TIER0", 2
   | RET -> "RET", 1
   | NEWSTR -> "NEWSTR", 1
   | PRINT -> "PRINT", 0
+  | RAND_INT -> "RAND_INT", 4
   | Literal n -> string_of_int n, 0
+  | LLiteral (a, b, c, d) -> (sp "%d, %d, %d, %d" a b c d), 0
+  | FLiteral f -> string_of_float f, 0
   | FRAME_RESET -> "FRAME_RESET", 3
   | LOAD -> "LOAD", 0
   | STORE -> "STORE", 0
