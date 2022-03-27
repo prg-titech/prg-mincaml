@@ -82,7 +82,7 @@ let arity_of_env env =
 let compile_id_or_imm env = function
   | C n when n >= 1 lsl 8 ->
     let a, b, c, d = devide_large_num n in
-    [ CONST_N; LLiteral (a, b, c, d) ]
+    [ CONST_N; Literal a; Literal b; Literal c; Literal d ]
   | C n -> [ CONST_INT; Literal n ]
   | V x ->
     let n = lookup env x in
@@ -233,10 +233,6 @@ and compile_exp data fname env = function
          (Printf.sprintf "un matched pattern: %s" (Asm.show_exp exp)))
 ;;
 
-type addr =
-  | Addr of int
-  | LAddr of int * int * int * int
-
 (* [...;Ldef a;...] -> [...;a,i;...] where i is the index of the next
    instruction of Ldef a in the list all Ldefs are removed e.g., [_;Ldef
    8;_;Ldef 7;_] ==> [8,1; 7,2] *)
@@ -250,15 +246,15 @@ let make_label_env instrs =
        instrs)
 ;;
 
-let resolve_largnum inst =
+let resolve_n_opt inst =
   match inst with
   | Literal n ->
-    if n >= 255
+    if n > 255
     then (
       let a, b, c, d = devide_large_num n in
-      LLiteral (a, b, c, d))
-    else Literal n
-  | _ -> inst
+      Some (Literal a, Literal b, Literal c, Literal d))
+    else None
+  | _ -> None
 ;;
 
 let change_to_n_inst inst =
@@ -278,8 +274,11 @@ let rec resolve_largenum_insts insts =
     (match hd1 with
     | JUMP | JUMP_IF | CALL ->
       (match hd2 with
-      | LLiteral (a, b, c, d) ->
-        change_to_n_inst hd2 :: hd2 :: resolve_largenum_insts tl
+       | Literal n when n > 255 ->
+         let a, b, c, d = devide_large_num n in
+         [ change_to_n_inst hd1 ]
+         @ [ Literal a; Literal b; Literal c; Literal d]
+         @ resolve_largenum_insts tl
       | _ -> hd1 :: hd2 :: resolve_largenum_insts tl)
     | _ -> hd1 :: resolve_largenum_insts (hd2 :: tl))
 ;;
@@ -287,7 +286,6 @@ let rec resolve_largenum_insts insts =
 let assoc_if subst elm =
   try
     List.assoc elm subst
-    |> resolve_largnum
   with Not_found -> elm
 ;;
 
@@ -295,7 +293,6 @@ let resolve_labels instrs =
   let lenv = make_label_env instrs in
   instrs
   |> List.map (fun instr -> assoc_if lenv instr)
-  |> resolve_largenum_insts
   |> List.filter (function Ldef _ -> false | _ -> true)
 ;;
 
