@@ -90,13 +90,13 @@ let compile_id_or_imm env = function
     if n = 0 then [ DUP ] else [ DUPN; Literal n ]
 ;;
 
-let rec compile_t fname env =
+let rec compile_t data fname env =
   Debug.print_env env;
   let open Asm in
   function
   | Ans (CallDir (Id.L fname', args, fargs) as e) ->
     if not @@ !Config.flg_tail_opt
-    then compile_exp fname env e
+    then compile_exp data fname env e
     else if fname' = fname
     then
       (if !Config.flg_frame_reset
@@ -123,15 +123,23 @@ let rec compile_t fname env =
           ])
       else [])
       @ [ JUMP; Lref fname ]
-    else compile_exp fname env e
-  | Ans e -> compile_exp fname env e
+    else compile_exp data fname env e
+  | Ans e -> compile_exp data fname env e
   | Let ((x, _), exp, t) ->
     let ex_env = extend_env env x in
-    compile_exp fname env exp @ compile_t fname ex_env t @ [ POP1 ]
+    compile_exp data fname env exp @ compile_t data fname ex_env t @ [ POP1 ]
 
-and compile_exp fname env = function
+and compile_exp data fname env = function
   | Nop -> []
   | Set i -> compile_id_or_imm env (C i)
+  | SetL (Id.L l) ->
+    (try
+       let f = List.find (fun (Id.L l', _) -> l = l') data |> snd in
+       [ CONST_FLOAT; FLiteral f ]
+     with
+    | e ->
+      Printf.eprintf "%s is not found in data\n" l;
+      raise e)
   | Mov var -> compile_id_or_imm env (V var)
   | FMovD var -> compile_id_or_imm env (V var)
   | (Add (x, y) | Sub (x, y) | Mul (x, y) | Div (x, y) | Mod (x, y)) as e ->
@@ -142,11 +150,11 @@ and compile_exp fname env = function
     compile_id_or_imm env (V x)
     @ compile_id_or_imm (shift_env env) (V y)
     @ [ opcode_of_binop e ]
-  | Ld (x, y, n) -> (* target ary, index, offset *)
-    compile_id_or_imm env (V x)
-    @ compile_id_or_imm (shift_env env) y
-    @ [ LOAD ]
-  | St (x, y, z, n) -> (* value, taget ary, index, offset *)
+  | Ld (x, y, n) | LdDF (x, y, n) ->
+    (* target ary, index, offset *)
+    compile_id_or_imm env (V x) @ compile_id_or_imm (shift_env env) y @ [ LOAD ]
+  | St (x, y, z, n) | StDF (x, y, z, n) ->
+    (* value, taget ary, index, offset *)
     compile_id_or_imm env (V x)
     @ compile_id_or_imm (shift_env env) (V y)
     @ compile_id_or_imm (shift_env (shift_env env)) z
@@ -157,10 +165,10 @@ and compile_exp fname env = function
     @ compile_id_or_imm (shift_env env) y
     @ [ EQ ]
     @ [ JUMP_IF; Lref l1 ]
-    @ compile_t fname env then_exp
+    @ compile_t data fname env then_exp
     @ [ JUMP; Lref l2 ]
     @ [ Ldef l1 ]
-    @ compile_t fname env else_exp
+    @ compile_t data fname env else_exp
     @ [ Ldef l2 ]
   | IfLE (x, y, then_exp, else_exp) ->
     let l2, l1 = gen_label (), gen_label () in
@@ -168,10 +176,10 @@ and compile_exp fname env = function
     @ compile_id_or_imm (shift_env env) y
     @ [ LT ]
     @ [ JUMP_IF; Lref l1 ]
-    @ compile_t fname env else_exp
+    @ compile_t data fname env else_exp
     @ [ JUMP; Lref l2 ]
     @ [ Ldef l1 ]
-    @ compile_t fname env then_exp
+    @ compile_t data fname env then_exp
     @ [ Ldef l2 ]
   | IfGE (x, y, then_exp, else_exp) ->
     let l2, l1 = gen_label (), gen_label () in
@@ -179,10 +187,10 @@ and compile_exp fname env = function
     @ compile_id_or_imm (shift_env env) y
     @ [ GT ]
     @ [ JUMP_IF; Lref l1 ]
-    @ compile_t fname env else_exp
+    @ compile_t data fname env else_exp
     @ [ JUMP; Lref l2 ]
     @ [ Ldef l1 ]
-    @ compile_t fname env then_exp
+    @ compile_t data fname env then_exp
     @ [ Ldef l2 ]
   | CallDir (Id.L "min_caml_print_int", args, fargs) -> [ PRINT ]
   | CallDir (Id.L "min_caml_create_array", args, fargs) ->
@@ -205,11 +213,29 @@ and compile_exp fname env = function
     if !Config.flg_call_assembler
     then [ CALL_ASSEMBLER; Lref var; Literal (List.length args) ]
     else [ CALL; Lref var; Literal (List.length args) ]
+  | CallCls (var, args, _) ->
+    (args
+    |> List.fold_left
+         (fun (rev_code_list, env) v ->
+           Debug.print_env env;
+           compile_id_or_imm env (V v) :: rev_code_list, shift_env env)
+         ([], env)
+    |> fst
+    |> List.rev
+    |> List.flatten)
+    @
+    if !Config.flg_call_assembler
+    then [ CALL_ASSEMBLER; Lref var; Literal (List.length args) ]
+    else [ CALL; Lref var; Literal (List.length args) ]
   | exp ->
     raise
       (NoImplementedError
          (Printf.sprintf "un matched pattern: %s" (Asm.show_exp exp)))
 ;;
+
+type addr =
+  | Addr of int
+  | LAddr of int * int * int * int
 
 (* [...;Ldef a;...] -> [...;a,i;...] where i is the index of the next
    instruction of Ldef a in the list all Ldefs are removed e.g., [_;Ldef
@@ -224,38 +250,86 @@ let make_label_env instrs =
        instrs)
 ;;
 
-let assoc_if subst elm = try List.assoc elm subst with Not_found -> elm
+let resolve_largnum inst =
+  match inst with
+  | Literal n ->
+    if n >= 255
+    then (
+      let a, b, c, d = devide_large_num n in
+      LLiteral (a, b, c, d))
+    else Literal n
+  | _ -> inst
+;;
+
+let change_to_n_inst inst =
+  match inst with
+  | CALL -> CALL_N
+  | CALL_ASSEMBLER -> CALL_N_ASSEMBLER
+  | JUMP -> JUMP_N
+  | JUMP_IF -> JUMP_IF_N
+  | _ -> inst
+;;
+
+let rec resolve_largenum_insts insts =
+  match insts with
+  | [] -> []
+  | [ hd ] -> [ hd ]
+  | hd1 :: hd2 :: tl ->
+    (match hd1 with
+    | JUMP | JUMP_IF | CALL ->
+      (match hd2 with
+      | LLiteral (a, b, c, d) ->
+        change_to_n_inst hd2 :: hd2 :: resolve_largenum_insts tl
+      | _ -> hd1 :: hd2 :: resolve_largenum_insts tl)
+    | _ -> hd1 :: resolve_largenum_insts (hd2 :: tl))
+;;
+
+let assoc_if subst elm =
+  try
+    List.assoc elm subst
+    |> resolve_largnum
+  with Not_found -> elm
+;;
 
 let resolve_labels instrs =
   let lenv = make_label_env instrs in
   instrs
-  |> List.map (assoc_if lenv)
+  |> List.map (fun instr -> assoc_if lenv instr)
+  |> resolve_largenum_insts
   |> List.filter (function Ldef _ -> false | _ -> true)
 ;;
 
-let compile_fun_body fenv name arity annot exp env =
+let compile_fun_body data fenv name arity annot exp env =
   [ Ldef name ]
-  @ compile_t name env exp
+  @ compile_t data name env exp
   @ if name = "main" then [ EXIT ] else [ RET; Literal arity ]
 ;;
 
 let compile_fun
+    (data : (Id.l * float) list)
     (fenv : Id.l -> Asm.fundef)
     { name = Id.L name; args; body; annot }
   =
-  compile_fun_body fenv name (List.length args) annot body (build_arg_env args)
+  compile_fun_body
+    data
+    fenv
+    name
+    (List.length args)
+    annot
+    body
+    (build_arg_env args)
 ;;
 
-let compile_funs fundefs =
+let compile_funs data fundefs =
   (* let fenv name = fst(List.find (fun (_,{name=n}) -> name=n)
    *                       (List.mapi (fun idx fdef -> (idx,fdef))
    *                          fundefs)) in *)
   let fenv name = List.find (fun Asm.{ name = n } -> n = name) fundefs in
   Array.of_list
-    (resolve_labels (List.flatten (List.map (compile_fun fenv) fundefs)))
+    (resolve_labels (List.flatten (List.map (compile_fun data fenv) fundefs)))
 ;;
 
-let f (Asm.Prog (_, fundefs, main)) =
+let f (Asm.Prog (data, fundefs, main)) =
   let main =
     { name = Id.L "main"
     ; args = []
@@ -265,5 +339,5 @@ let f (Asm.Prog (_, fundefs, main)) =
     ; annot = None
     }
   in
-  compile_funs (main :: fundefs)
+  compile_funs data (main :: fundefs)
 ;;
