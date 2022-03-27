@@ -1,29 +1,25 @@
-let%tj rec swap xs idx max =
-  if max < idx + 1
-  then xs
-  else (
-    let l = xs.(idx) in
-    let r = xs.(idx + 1) in
-    if l < r + 1
-    then swap xs (idx + 1) max
-    else (
-      xs.(idx) <- r;
-      xs.(idx + 1) <- l;
-      swap xs (idx + 1) max))
+(* let rec make_arr n arr = *)
+(*   if n < 1 then arr else *)
+(*     (arr.(n-1) <- rand_int 2048; make_arr (n-1) arr) *)
+(* in *)
+let rec swap xs i n =
+  if n - 1 < i then xs
+  else
+    let l = xs.(i) in
+    let r = xs.(i+1) in
+    if l > r then (
+      xs.(i) <- r; xs.(i+1) <- l;
+      swap xs (i+1) n
+    ) else swap xs (i+1) n
 in
-let rec bubble_sort xs idx len =
-  if len - 1 < idx
-  then xs
-  else (
-    let xs = swap xs 0 (len - idx) in
-    bubble_sort xs (idx + 1) len)
+let rec bubble_sort xs i n =
+  if n - 1 < i then xs
+  else
+    let xs = swap xs 0 (n-i-1) in
+    bubble_sort xs (i+1) n
 in
-let rec make_arr n arr =
-  if n < 1 then arr else
-    (arr.(n-1) <- rand_int 2048; make_arr (n-1) arr)
-in
-let a = Array.make 10 0 in
+let a = Array.make 1000 1 in
 a.(0) <- 3; a.(1) <- 1; a.(2) <- 2;
-a.(3) <- 10; a.(4) <- (-1); a.(5) <- 8;
-let b = bubble_sort a 0 10 in
-print_int (a.(0))
+a.(3) <- 10; a.(4) <- 1;
+let b = bubble_sort a 0 1000 in
+print_int (b.(8))
