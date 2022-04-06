@@ -2,7 +2,41 @@ open Printf
 
 let sp = sprintf
 
+(*
+('NOP', False),
+('CONST_INT', True),
+('CONST_FLOAT', True),
+('CONST_N', True),
+('DUP', False),
+('DUPN', True),
+('POP', False),
+('POP1', False),
+('LT', False),
+('GT', False),
+('EQ', False),
+('ADD', False),
+('SUB', False),
+('MUL', False),
+('DIV', False),
+('MOD', False),
+('EXIT', False),
+('JUMP', True),
+('JUMP_IF', True),
+('CALL', True),
+('CALL_ASSEMBLER', True),
+('CALL_TIER2', True),
+('CALL_TIER0', True),
+('RET', True),
+('NEWSTR', True),
+('FRAME_RESET', True),
+('PRINT', False),
+('LOAD', True),
+('STORE', True),
+('BUILD_LIST', True)
+ *)
+
 type bytecode =
+  | NOP
   | CONST_INT
   | CONST_FLOAT
   | CONST_N
@@ -33,6 +67,12 @@ type bytecode =
   | NEWSTR
   | PRINT
   | RAND_INT
+  | FLOAT_TO_INT
+  | INT_TO_FLOAT
+  | ABS_FLOAT
+  | SIN
+  | COS
+  | SQRT
   | FRAME_RESET
   | BUILD_LIST
   | LOAD
@@ -44,7 +84,8 @@ type bytecode =
 [@@deriving show]
 
 let bytecodes =
-  [| CONST_INT
+  [| NOP
+   ; CONST_INT
    ; CONST_FLOAT
    ; CONST_N
    ; DUP
@@ -79,54 +120,8 @@ let bytecodes =
   |]
 ;;
 
-let pp_bytecode_counter = ref 0
-
-let pp_pc () =
-  print_int !pp_bytecode_counter;
-  print_string "\t";
-  incr pp_bytecode_counter
-;;
-
-let rec pp_bytecode ?(i = 0) insts =
-  let rec pp_bytecode' ?(i = 0) insts =
-    match insts with
-    | [] -> ()
-    | hd :: tl ->
-      (match hd with
-      | CONST_INT | DUPN | JUMP | JUMP_IF | RET | CALL ->
-        pp_pc ();
-        print_string (show_bytecode hd);
-        print_string " ";
-        pp_bytecode' ~i:0 tl
-      | Literal n ->
-        print_string "    ";
-        print_string (show_bytecode hd);
-        if i = 0 then print_newline () else print_string "    ";
-        incr pp_bytecode_counter;
-        pp_bytecode' ~i:(i - 1) tl
-      | _ ->
-        pp_pc ();
-        print_string (show_bytecode hd);
-        print_newline ();
-        pp_bytecode' ~i:0 tl)
-  in
-  pp_bytecode' ~i (Array.to_list insts)
-;;
-
-let rec string_of_codes ?(i = 0) codes =
-  if i > Array.length codes - 1
-  then ""
-  else (
-    let code = codes.(i) in
-    let opcode, argnum = string_of_code code in
-    let str = ref "" in
-    for j = i + 1 to i + argnum do
-      let opcode, argnum = string_of_code codes.(j) in
-      str := !str ^ opcode ^ ", "
-    done;
-    (Printf.sprintf "    tla.%s, %s\n" opcode !str) ^ string_of_codes ~i:(i + argnum + 1) codes)
-
-and string_of_code = function
+let string_of_code = function
+  | NOP -> "NOP", 0
   | CONST_INT -> "CONST_INT", 1
   | CONST_FLOAT -> "CONST_FLOAT", 1
   | CONST_N (* a, b, c, d *) -> "CONST_N", 4
@@ -160,11 +155,88 @@ and string_of_code = function
   | Literal n -> string_of_int n, 0
   | FLiteral f -> string_of_float f, 0
   | FRAME_RESET -> "FRAME_RESET", 3
+  | FLOAT_TO_INT -> "FLOAT_TO_INT", 0
+  | INT_TO_FLOAT -> "INT_TO_FLOAT", 0
+  | ABS_FLOAT -> "ABS_FLOAT", 0
+  | SIN -> "SIN", 0
+  | COS -> "COS", 0
+  | SQRT -> "SQRT", 0
   | LOAD -> "LOAD", 0
   | STORE -> "STORE", 0
   | BUILD_LIST -> "BUILD_LIST", 0
-  | Lref _ | Ldef _ -> failwith "Lref and Ldef is not supported here"
+  | Lref _ -> "Lref", 1
+  | Ldef _ ->  "Ldef", 1
 ;;
+
+let rec string_of_codes ?(i = 0) codes =
+  if i > Array.length codes - 1
+  then ""
+  else (
+    let code = codes.(i) in
+    let opcode, argnum = string_of_code code in
+    let str = ref "" in
+    for j = i + 1 to i + argnum do
+      let opcode, argnum = string_of_code codes.(j) in
+      str := !str ^ opcode ^ ", "
+    done;
+    (Printf.sprintf "    tla.%s, %s\n" opcode !str) ^ string_of_codes ~i:(i + argnum + 1) codes)
+
+
+let pp_bytecode_counter = ref 0
+
+let pp_pc () =
+  print_int !pp_bytecode_counter;
+  print_string "\t";
+  incr pp_bytecode_counter
+;;
+
+let rec pp_bytecode ?(i = 0) codes =
+  let rec pp_bytecode' ?(i = 0) codes =
+    match codes with
+    | [] -> ()
+    | hd :: tl ->
+      (match hd with
+      | CONST_INT | CONST_FLOAT | DUPN | JUMP | JUMP_IF | RET ->
+        pp_pc ();
+        print_string (show_bytecode hd);
+        print_string "\t";
+        pp_bytecode' ~i:0 tl
+      | CALL ->
+        pp_pc ();
+        print_string (show_bytecode hd);
+        print_string "\t";
+        pp_bytecode' ~i:1 tl
+      | FRAME_RESET ->
+        pp_pc ();
+        print_string (show_bytecode hd);
+        print_string "\t";
+        pp_bytecode' ~i:2 tl
+      | CONST_N ->
+        pp_pc ();
+        print_string (show_bytecode hd);
+        print_string "\t";
+        pp_bytecode' ~i:3 tl
+      | Literal n ->
+        print_string "\t";
+        print_string (show_bytecode hd);
+        if i = 0 then print_newline () else print_string "\t";
+        incr pp_bytecode_counter;
+        pp_bytecode' ~i:(i - 1) tl
+      | Lref x ->
+        print_string "\t";
+        print_string (show_bytecode hd);
+        if i = 0 then print_newline () else print_string "\t";
+        incr pp_bytecode_counter;
+        pp_bytecode' ~i:(i - 1) tl
+      | _ ->
+        pp_pc ();
+        print_string (show_bytecode hd);
+        print_newline ();
+        pp_bytecode' ~i:0 tl)
+  in
+  pp_bytecode' ~i (Array.to_list codes)
+;;
+
 
 let pp_tla_bytecode codes =
   let str = string_of_codes codes in
