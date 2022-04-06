@@ -1,5 +1,5 @@
 let rec ary i n xs ys zs =
-  if n - 1 < i then zs
+  if n-1 < i then zs
   else (
     zs.(i) <- xs.(i) + ys.(i);
     ary (i + 1) n xs ys zs)
