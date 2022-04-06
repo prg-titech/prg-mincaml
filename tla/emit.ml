@@ -135,7 +135,7 @@ and compile_exp data fname env = function
   | SetL (Id.L l) ->
     (try
        let f = List.find (fun (Id.L l', _) -> l = l') data |> snd in
-       [ CONST_FLOAT; FLiteral f ]
+       [ CONST_FLOAT; Literal (int_of_float f) ]
      with
     | e ->
       Printf.eprintf "%s is not found in data\n" l;
@@ -150,9 +150,10 @@ and compile_exp data fname env = function
     compile_id_or_imm env (V x)
     @ compile_id_or_imm (shift_env env) (V y)
     @ [ opcode_of_binop e ]
-  | Ld (x, y, n) | LdDF (x, y, n) ->
+  | Ld (x, y, n) ->
     (* target ary, index, offset *)
     compile_id_or_imm env (V x) @ compile_id_or_imm (shift_env env) y @ [ LOAD ]
+  | LdDF (x, y, n) -> compile_id_or_imm env (V x)
   | St (x, y, z, n) | StDF (x, y, z, n) ->
     (* value, taget ary, index, offset *)
     compile_id_or_imm env (V x)
@@ -163,6 +164,17 @@ and compile_exp data fname env = function
     let l2, l1 = gen_label (), gen_label () in
     compile_id_or_imm env (V x)
     @ compile_id_or_imm (shift_env env) y
+    @ [ EQ ]
+    @ [ JUMP_IF; Lref l1 ]
+    @ compile_t data fname env then_exp
+    @ [ JUMP; Lref l2 ]
+    @ [ Ldef l1 ]
+    @ compile_t data fname env else_exp
+    @ [ Ldef l2 ]
+  | IfFEq (x, y, then_exp, else_exp) ->
+    let l2, l1 = gen_label (), gen_label () in
+    compile_id_or_imm env (V x)
+    @ compile_id_or_imm (shift_env env) (V y)
     @ [ EQ ]
     @ [ JUMP_IF; Lref l1 ]
     @ compile_t data fname env then_exp
@@ -181,6 +193,17 @@ and compile_exp data fname env = function
     @ [ Ldef l1 ]
     @ compile_t data fname env then_exp
     @ [ Ldef l2 ]
+  | IfFLE (x, y, then_exp, else_exp) ->
+    let l2, l1 = gen_label (), gen_label () in
+    compile_id_or_imm env (V x)
+    @ compile_id_or_imm (shift_env env) (V y)
+    @ [ LT ]
+    @ [ JUMP_IF; Lref l1 ]
+    @ compile_t data fname env else_exp
+    @ [ JUMP; Lref l2 ]
+    @ [ Ldef l1 ]
+    @ compile_t data fname env then_exp
+    @ [ Ldef l2 ]
   | IfGE (x, y, then_exp, else_exp) ->
     let l2, l1 = gen_label (), gen_label () in
     compile_id_or_imm env (V x)
@@ -192,13 +215,46 @@ and compile_exp data fname env = function
     @ [ Ldef l1 ]
     @ compile_t data fname env then_exp
     @ [ Ldef l2 ]
-  | CallDir (Id.L "min_caml_print_int", args, fargs) -> [ PRINT ]
   | CallDir (Id.L "min_caml_create_array", args, fargs) ->
     let size, init = List.nth args 0, List.nth args 1 in
     compile_id_or_imm env (V init)
     @ compile_id_or_imm (shift_env env) (V size)
     @ [ BUILD_LIST ]
-  | CallDir (Id.L var, args, _) ->
+  | CallDir (Id.L "min_caml_create_float_array", args, fargs) ->
+    let size, init = List.nth args 0, List.nth fargs 0 in
+    compile_id_or_imm env (V init)
+    @ compile_id_or_imm (shift_env env) (V size)
+    @ [ BUILD_LIST ]
+  | CallDir (Id.L "min_caml_sin", [x], _) ->
+    compile_id_or_imm env (V x) @ [ SIN ]
+  | CallDir (Id.L "min_caml_cos", [x], _) ->
+    compile_id_or_imm env (V x) @ [ COS ]
+  | CallDir (Id.L "min_caml_abs", [x], _) ->
+    compile_id_or_imm env (V x) @ [ ABS_FLOAT ]
+  | CallDir (Id.L "min_caml_sqrt", [x], _) ->
+    compile_id_or_imm env (V x) @ [ SQRT ]
+  | CallDir (Id.L "min_caml_abs_float", _, [x]) ->
+    compile_id_or_imm env (V x) @ [ SQRT ]
+  | CallDir (Id.L var, [], fargs) ->
+    Printf.eprintf "CALL %s %d\n" var (List.length fargs);
+    (fargs
+    |> List.fold_left
+         (fun (rev_code_list, env) v ->
+           Debug.print_env env;
+           compile_id_or_imm env (V v) :: rev_code_list, shift_env env)
+         ([], env)
+    |> fst
+    |> List.rev
+    |> List.flatten)
+    @
+    (match var with
+    | "min_camlabs_float" -> [ ABS_FLOAT ]
+    | "min_caml_int_of_float" -> [ FLOAT_TO_INT ]
+    | _ ->
+      if !Config.flg_call_assembler
+      then [ CALL_ASSEMBLER; Lref var; Literal (List.length fargs) ]
+      else [ CALL; Lref var; Literal (List.length fargs) ])
+  | CallDir (Id.L var, args, []) ->
     Printf.eprintf "CALL %s %d\n" var (List.length args);
     (args
     |> List.fold_left
@@ -210,9 +266,13 @@ and compile_exp data fname env = function
     |> List.rev
     |> List.flatten)
     @
-    if !Config.flg_call_assembler
-    then [ CALL_ASSEMBLER; Lref var; Literal (List.length args) ]
-    else [ CALL; Lref var; Literal (List.length args) ]
+    (match var with
+    | "min_caml_print_int" -> [ PRINT ]
+    | "min_caml_float_of_int" -> [ INT_TO_FLOAT ]
+    | _ ->
+      if !Config.flg_call_assembler
+      then [ CALL_ASSEMBLER; Lref var; Literal (List.length args) ]
+      else [ CALL; Lref var; Literal (List.length args) ])
   | CallCls (var, args, _) ->
     (args
     |> List.fold_left
@@ -274,20 +334,16 @@ let rec resolve_largenum_insts insts =
     (match hd1 with
     | JUMP | JUMP_IF | CALL ->
       (match hd2 with
-       | Literal n when n > 255 ->
-         let a, b, c, d = devide_large_num n in
-         [ change_to_n_inst hd1 ]
-         @ [ Literal a; Literal b; Literal c; Literal d]
-         @ resolve_largenum_insts tl
+      | Literal n when n > 255 ->
+        let a, b, c, d = devide_large_num n in
+        [ change_to_n_inst hd1 ]
+        @ [ Literal a; Literal b; Literal c; Literal d ]
+        @ resolve_largenum_insts tl
       | _ -> hd1 :: hd2 :: resolve_largenum_insts tl)
     | _ -> hd1 :: resolve_largenum_insts (hd2 :: tl))
 ;;
 
-let assoc_if subst elm =
-  try
-    List.assoc elm subst
-  with Not_found -> elm
-;;
+let assoc_if subst elm = try List.assoc elm subst with Not_found -> elm
 
 let resolve_labels instrs =
   let lenv = make_label_env instrs in
