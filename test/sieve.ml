@@ -6,7 +6,7 @@ let rec loop1 flags k i =
 let rec sieve flags i =
   if i <= 131135 then
     let x = flags.(i) in
-    if x >= 2 then
+    if x > 1 then
       let flags = loop1 flags (i+i) i in
       sieve flags (i+1)
     else
