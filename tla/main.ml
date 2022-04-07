@@ -7,6 +7,9 @@ type backend =
 
 let backend_type = ref Bytecode
 
+let print_import _ =
+    print_endline "from rpython.jit.tl.threadedcode import tla\n"
+
 let rec lexbuf oc l =
   let open TLA in
   Id.counter := 0;
@@ -27,7 +30,8 @@ let rec lexbuf oc l =
       prerr_newline ());
     (match !backend_type with
     | PPBytecode -> p |> Emit.f |> Bytecodes.pp_bytecode
-    | Bytecode -> p |> Emit.f |> Bytecodes.pp_tla_bytecode)
+    | Bytecode -> p |> Emit.f |> fun p ->
+            print_import (); p |> Bytecodes.pp_tla_bytecode)
 ;;
 
 let main f =
