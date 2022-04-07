@@ -78,7 +78,6 @@ type bytecode =
   | LOAD
   | STORE
   | Literal of int
-  | FLiteral of float
   | Lref of string
   | Ldef of string
 [@@deriving show]
@@ -153,7 +152,6 @@ let string_of_code = function
   | PRINT -> "PRINT", 0
   | RAND_INT -> "RAND_INT", 4
   | Literal n -> string_of_int n, 0
-  | FLiteral f -> string_of_float f, 0
   | FRAME_RESET -> "FRAME_RESET", 3
   | FLOAT_TO_INT -> "FLOAT_TO_INT", 0
   | INT_TO_FLOAT -> "INT_TO_FLOAT", 0
