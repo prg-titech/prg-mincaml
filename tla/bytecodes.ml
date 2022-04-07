@@ -38,8 +38,11 @@ let sp = sprintf
 type bytecode =
   | NOP
   | CONST_INT
+  | CONST_NEG_INT
   | CONST_FLOAT
+  | CONST_NEG_FLOAT
   | CONST_N
+  | CONST_NEG_N
   | DUP
   | DUPN
   | POP
@@ -83,47 +86,61 @@ type bytecode =
 [@@deriving show]
 
 let bytecodes =
-  [| NOP
-   ; CONST_INT
-   ; CONST_FLOAT
-   ; CONST_N
-   ; DUP
-   ; DUPN
-   ; POP
-   ; POP1
-   ; LT
-   ; GT
-   ; EQ
-   ; ADD
-   ; SUB
-   ; MUL
-   ; DIV
-   ; MOD
-   ; EXIT
-   ; JUMP
-   ; JUMP_IF
-   ; CALL
-   ; CALL_N
-   ; CALL_ASSEMBLER
-   ; CALL_N_ASSEMBLER
-   ; CALL_TIER2
-   ; CALL_TIER0
-   ; RET
-   ; NEWSTR
-   ; PRINT
-   ; RAND_INT
-   ; FRAME_RESET
-   ; BUILD_LIST
-   ; LOAD
-   ; STORE
+  [|NOP
+   ;CONST_INT
+   ;CONST_NEG_INT
+   ;CONST_FLOAT
+   ;CONST_NEG_FLOAT
+   ;CONST_N
+   ;CONST_NEG_N
+   ;DUP
+   ;DUPN
+   ;POP
+   ;POP1
+   ;LT
+   ;GT
+   ;EQ
+   ;ADD
+   ;SUB
+   ;MUL
+   ;DIV
+   ;MOD
+   ;EXIT
+   ;JUMP
+   ;JUMP_N
+   ;JUMP_IF
+   ;JUMP_IF_N
+   ;CALL
+   ;CALL_N
+   ;CALL_ASSEMBLER
+   ;CALL_N_ASSEMBLER
+   ;CALL_TIER2
+   ;CALL_TIER0
+   ;RET
+   ;NEWSTR
+   ;PRINT
+   ;RAND_INT
+   ;FLOAT_TO_INT
+   ;INT_TO_FLOAT
+   ;ABS_FLOAT
+   ;SIN
+   ;COS
+   ;SQRT
+   ;FRAME_RESET
+   ;BUILD_LIST
+   ;LOAD
+   ;STORE
   |]
 ;;
 
 let string_of_code = function
   | NOP -> "NOP", 0
   | CONST_INT -> "CONST_INT", 1
+  | CONST_NEG_INT -> "CONST_NEG_INT", 1
   | CONST_FLOAT -> "CONST_FLOAT", 1
+  | CONST_NEG_FLOAT -> "CONST_NEG_FLOAT", 1
   | CONST_N (* a, b, c, d *) -> "CONST_N", 4
+  | CONST_NEG_N (* a, b, c, d *) -> "CONST_NEG_N", 4
   | DUP -> "DUP", 0
   | DUPN -> "DUPN", 1
   | POP -> "POP", 0

@@ -83,6 +83,7 @@ let compile_id_or_imm env = function
   | C n when n >= 1 lsl 8 ->
     let a, b, c, d = devide_large_num n in
     [ CONST_N; Literal a; Literal b; Literal c; Literal d ]
+  | C n when n < 0 -> [ CONST_NEG_INT; Literal (abs n) ]
   | C n -> [ CONST_INT; Literal n ]
   | V x ->
     let n = lookup env x in
@@ -134,8 +135,12 @@ and compile_exp data fname env = function
   | Set i -> compile_id_or_imm env (C i)
   | SetL (Id.L l) ->
     (try
-       let f = List.find (fun (Id.L l', _) -> l = l') data |> snd in
-       [ CONST_FLOAT; Literal (int_of_float f) ]
+       let fval = List.find (fun (Id.L l', _) -> l = l') data |> snd in
+       let ival = int_of_float fval in
+       if ival < 0 then
+         [ CONST_NEG_FLOAT; Literal (abs ival)]
+       else
+         [ CONST_FLOAT; Literal ival]
      with
     | e ->
       Printf.eprintf "%s is not found in data\n" l;
@@ -229,7 +234,7 @@ and compile_exp data fname env = function
     compile_id_or_imm env (V x) @ [ SIN ]
   | CallDir (Id.L "min_caml_cos", [x], _) ->
     compile_id_or_imm env (V x) @ [ COS ]
-  | CallDir (Id.L "min_caml_abs", [x], _) ->
+  | CallDir (Id.L "min_caml_abs_float", _, [x]) ->
     compile_id_or_imm env (V x) @ [ ABS_FLOAT ]
   | CallDir (Id.L "min_caml_sqrt", [x], _) ->
     compile_id_or_imm env (V x) @ [ SQRT ]
