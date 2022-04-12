@@ -79,7 +79,11 @@ type bytecode =
   | CALL_TIER0
   | RET
   | NEWSTR
+  | FRAME_RESET
   | PRINT
+  | BUILD_LIST
+  | LOAD
+  | STORE
   | RAND_INT
   | FLOAT_TO_INT
   | INT_TO_FLOAT
@@ -87,10 +91,6 @@ type bytecode =
   | SIN
   | COS
   | SQRT
-  | FRAME_RESET
-  | BUILD_LIST
-  | LOAD
-  | STORE
   | Literal of int
   | Lref of string
   | Ldef of string
