@@ -1,12 +1,13 @@
 (library
  (name TLA)
+ (inline_tests)
  (public_name pmincaml.tla)
  (modules :standard \ main)
  (libraries str MinCaml)
  (flags
   (-w -4-33-40-41))
  (preprocess
-  (pps ppx_deriving.show ppx_deriving.enum)))
+  (pps ppx_deriving.show ppx_deriving.enum ppx_inline_test)))
 
 (executable
  (name main)
@@ -17,4 +18,4 @@
   (-w -4-33-40-41))
  (package tlac)
  (preprocess
-  (pps ppx_deriving.show ppx_deriving.enum)))
+  (pps ppx_deriving.show ppx_deriving.enum ppx_inline_test)))
