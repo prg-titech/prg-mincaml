@@ -5,7 +5,9 @@ let sp = sprintf
 (*
 ('NOP', False),
 ('CONST_INT', True),
+('CONST_NEG_INT', True),
 ('CONST_FLOAT', True),
+('CONST_NEG_FLOAT', True),
 ('CONST_N', True),
 ('DUP', False),
 ('DUPN', True),
@@ -21,7 +23,9 @@ let sp = sprintf
 ('MOD', False),
 ('EXIT', False),
 ('JUMP', True),
+('JUMP_N', True),
 ('JUMP_IF', True),
+('JUMP_IF_N', True),
 ('CALL', True),
 ('CALL_ASSEMBLER', True),
 ('CALL_TIER2', True),
@@ -32,8 +36,15 @@ let sp = sprintf
 ('PRINT', False),
 ('LOAD', True),
 ('STORE', True),
-('BUILD_LIST', True)
- *)
+('BUILD_LIST', True),
+('RAND_INT', False),
+('FLOAT_TO_INT', False),
+('INT_TO_FLOAT', False),
+('ABS_FLOAT', False),
+('SIN', False),
+('COS', False),
+('SQRT', False)
+*)
 
 type bytecode =
   | NOP
@@ -137,8 +148,8 @@ let string_of_code = function
   | NOP -> "NOP", 0
   | CONST_INT -> "CONST_INT", 1
   | CONST_NEG_INT -> "CONST_NEG_INT", 1
-  | CONST_FLOAT -> "CONST_FLOAT", 1
-  | CONST_NEG_FLOAT -> "CONST_NEG_FLOAT", 1
+  | CONST_FLOAT -> "CONST_FLOAT", 9
+  | CONST_NEG_FLOAT -> "CONST_NEG_FLOAT", 9
   | CONST_N (* a, b, c, d *) -> "CONST_N", 4
   | CONST_NEG_N (* a, b, c, d *) -> "CONST_NEG_N", 4
   | DUP -> "DUP", 0
@@ -155,9 +166,9 @@ let string_of_code = function
   | MOD -> "MOD", 0
   | EXIT -> "EXIT", 0
   | JUMP -> "JUMP", 1
-  | JUMP_N -> "JUMP_N", 1
+  | JUMP_N -> "JUMP_N", 4
   | JUMP_IF -> "JUMP_IF", 1
-  | JUMP_IF_N -> "JUMP_IFN_", 1
+  | JUMP_IF_N -> "JUMP_IF_N", 4
   | CALL -> "CALL", 2
   | CALL_N -> "CALL_N", 5
   | CALL_ASSEMBLER -> "CALL_ASSEMBLER", 2

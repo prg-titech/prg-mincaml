@@ -18,6 +18,25 @@ module Debug = struct
   ;;
 end
 
+let compare_id v1 v2 =
+  let get_id id = List.nth (String.split_on_char '.' id) 1 |> int_of_string in
+  let v1_id, v2_id = get_id v1, get_id v2 in
+  v1_id - v2_id
+;;
+
+let sort_by_id = List.sort (fun a b -> compare_id a b)
+
+let%test "sort_by_compare_id" =
+  let v1, v2, v3 = "l.39", "l.44", "l.50" in
+  let args = [v3; v2; v1] in
+  let res = sort_by_id args in
+  res = [v1; v2; v3]
+;;
+
+type number = int * int * int * int
+
+type float_with_digits = Float_with_digits of number * number * int
+
 (* mask the lower rhs bits of lhs *)
 let ( |%| ) lhs rhs = lhs land ((1 lsl rhs) - 1)
 
@@ -31,6 +50,25 @@ let devide_large_num n =
   a, b, c, d
 ;;
 
+let devide_large_num_with_digits f =
+  let devide_into_to lst =
+    List.nth lst 0, List.nth lst 1
+  in
+  try
+    let int_n, decimal_n = Float.to_string f |> String.split_on_char '.' |>  devide_into_to in
+    let int = int_n |> int_of_string |> devide_large_num in
+    let decimal = decimal_n |> int_of_string |> devide_large_num in
+    let digits = (decimal_n |> float_of_string |> Float.log10 |> int_of_float) + 1 in
+    Float_with_digits (int, decimal, digits)
+  with e -> raise e
+;;
+
+let%test "devide_float_num" =
+  let f1 = 1.2345 in
+  let Float_with_digits (i1, d1, d_num1) = devide_large_num_with_digits f1 in
+  i1 = (0, 0, 0, 1) && d1 = (0, 0, 9, 41) && 4 = d_num1
+;;
+
 let opcode_of_binop e =
   match e with
   | Add _ | FAddD _ -> ADD
@@ -40,6 +78,11 @@ let opcode_of_binop e =
   | Mod _ -> MOD
   | _ -> failwith @@ Printf.sprintf "unsupported pattern %s" (show_exp e)
 ;;
+
+let literals_of_large_num (a, b, c, d) =
+  [ Literal a; Literal b; Literal c; Literal d ]
+;;
+
 
 (* generate a unique label id *)
 let gen_label, reset =
@@ -60,7 +103,7 @@ let lookup env var =
     |> fst
   with
   | Not_found ->
-    Printf.eprintf "var %s is not found" var;
+    Printf.eprintf "var %s is not found\n" var;
     raise Not_found
 ;;
 
@@ -136,11 +179,11 @@ and compile_exp data fname env = function
   | SetL (Id.L l) ->
     (try
        let fval = List.find (fun (Id.L l', _) -> l = l') data |> snd in
-       let ival = int_of_float fval in
-       if ival < 0 then
-         [ CONST_NEG_FLOAT; Literal (abs ival)]
-       else
-         [ CONST_FLOAT; Literal ival]
+       let Float_with_digits (i_num, f_num, digits) = devide_large_num_with_digits (abs_float fval) in
+       Printf.eprintf "SetL %s, fval %f\n" l fval;
+       (if fval < 0.0 then [ CONST_NEG_FLOAT ]
+        else [ CONST_FLOAT ])
+       @ (literals_of_large_num i_num) @ (literals_of_large_num f_num) @ [ Literal digits ]
      with
     | e ->
       Printf.eprintf "%s is not found in data\n" l;
@@ -238,11 +281,18 @@ and compile_exp data fname env = function
     compile_id_or_imm env (V x) @ [ ABS_FLOAT ]
   | CallDir (Id.L "min_caml_sqrt", [x], _) ->
     compile_id_or_imm env (V x) @ [ SQRT ]
-  | CallDir (Id.L "min_caml_abs_float", _, [x]) ->
-    compile_id_or_imm env (V x) @ [ SQRT ]
-  | CallDir (Id.L var, [], fargs) ->
+  | CallDir (Id.L "min_caml_int_of_float", _, [x]) ->
+    compile_id_or_imm env (V x) @ [ FLOAT_TO_INT ]
+  | CallDir (Id.L "min_caml_float_of_int", [x], _) ->
+    compile_id_or_imm env (V x) @ [ INT_TO_FLOAT ]
+  | CallDir (Id.L "min_caml_print_int", [x], _) ->
+    compile_id_or_imm env (V x) @ [ PRINT ]
+  | CallDir (Id.L "min_caml_print_float", _, [x]) ->
+    compile_id_or_imm env (V x) @ [ PRINT ]
+  | CallDir (Id.L var, args, fargs) ->
     Printf.eprintf "CALL %s %d\n" var (List.length fargs);
-    (fargs
+    (args @ fargs
+    |> sort_by_id
     |> List.fold_left
          (fun (rev_code_list, env) v ->
            Debug.print_env env;
@@ -252,34 +302,12 @@ and compile_exp data fname env = function
     |> List.rev
     |> List.flatten)
     @
-    (match var with
-    | "min_camlabs_float" -> [ ABS_FLOAT ]
-    | "min_caml_int_of_float" -> [ FLOAT_TO_INT ]
-    | _ ->
-      if !Config.flg_call_assembler
-      then [ CALL_ASSEMBLER; Lref var; Literal (List.length fargs) ]
-      else [ CALL; Lref var; Literal (List.length fargs) ])
-  | CallDir (Id.L var, args, []) ->
-    Printf.eprintf "CALL %s %d\n" var (List.length args);
-    (args
-    |> List.fold_left
-         (fun (rev_code_list, env) v ->
-           Debug.print_env env;
-           compile_id_or_imm env (V v) :: rev_code_list, shift_env env)
-         ([], env)
-    |> fst
-    |> List.rev
-    |> List.flatten)
-    @
-    (match var with
-    | "min_caml_print_int" -> [ PRINT ]
-    | "min_caml_float_of_int" -> [ INT_TO_FLOAT ]
-    | _ ->
-      if !Config.flg_call_assembler
-      then [ CALL_ASSEMBLER; Lref var; Literal (List.length args) ]
-      else [ CALL; Lref var; Literal (List.length args) ])
-  | CallCls (var, args, _) ->
-    (args
+    (if !Config.flg_call_assembler
+     then [ CALL_ASSEMBLER; Lref var; Literal (List.length (args @ fargs)) ]
+     else [ CALL; Lref var; Literal (List.length (args @ fargs)) ])
+  | CallCls (var, args, fargs) ->
+    (args @ fargs
+    |> sort_by_id
     |> List.fold_left
          (fun (rev_code_list, env) v ->
            Debug.print_env env;
@@ -331,7 +359,7 @@ let change_to_n_inst inst =
   | _ -> inst
 ;;
 
-let rec resolve_largenum_insts insts =
+let rec resolve_n_insts insts =
   match insts with
   | [] -> []
   | [ hd ] -> [ hd ]
@@ -343,9 +371,9 @@ let rec resolve_largenum_insts insts =
         let a, b, c, d = devide_large_num n in
         [ change_to_n_inst hd1 ]
         @ [ Literal a; Literal b; Literal c; Literal d ]
-        @ resolve_largenum_insts tl
-      | _ -> hd1 :: hd2 :: resolve_largenum_insts tl)
-    | _ -> hd1 :: resolve_largenum_insts (hd2 :: tl))
+        @ resolve_n_insts tl
+      | _ -> hd1 :: hd2 :: resolve_n_insts tl)
+    | _ -> hd1 :: resolve_n_insts (hd2 :: tl))
 ;;
 
 let assoc_if subst elm = try List.assoc elm subst with Not_found -> elm
@@ -355,6 +383,7 @@ let resolve_labels instrs =
   instrs
   |> List.map (fun instr -> assoc_if lenv instr)
   |> List.filter (function Ldef _ -> false | _ -> true)
+  |> resolve_n_insts
 ;;
 
 let compile_fun_body data fenv name arity annot exp env =
@@ -366,16 +395,16 @@ let compile_fun_body data fenv name arity annot exp env =
 let compile_fun
     (data : (Id.l * float) list)
     (fenv : Id.l -> Asm.fundef)
-    { name = Id.L name; args; body; annot }
+    { name = Id.L name; args; fargs; body; annot }
   =
   compile_fun_body
     data
     fenv
     name
-    (List.length args)
+    (List.length (args @ fargs))
     annot
     body
-    (build_arg_env args)
+    (build_arg_env (args @ fargs))
 ;;
 
 let compile_funs data fundefs =
