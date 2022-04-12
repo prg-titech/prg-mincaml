@@ -51,21 +51,28 @@ let devide_large_num n =
 ;;
 
 let devide_large_num_with_digits f =
-  let devide_into_to lst =
-    List.nth lst 0, List.nth lst 1
-  in
+  let devide_into_to lst = List.nth lst 0, List.nth lst 1 in
   try
-    let int_n, decimal_n = Float.to_string f |> String.split_on_char '.' |>  devide_into_to in
+    Printf.eprintf "deviding %f\n" f;
+    let int_n, decimal_n =
+      Float.to_string f |> String.split_on_char '.' |> devide_into_to
+    in
     let int = int_n |> int_of_string |> devide_large_num in
-    let decimal = decimal_n |> int_of_string |> devide_large_num in
-    let digits = (decimal_n |> float_of_string |> Float.log10 |> int_of_float) + 1 in
+    let decimal, digits =
+      if decimal_n = ""
+      then (0, 0, 0, 0), 0
+      else
+        ( decimal_n |> int_of_string |> devide_large_num
+        , (decimal_n |> float_of_string |> Float.log10 |> int_of_float) + 1 )
+    in
     Float_with_digits (int, decimal, digits)
-  with e -> raise e
+  with
+  | e -> raise e
 ;;
 
 let%test "devide_float_num" =
   let f1 = 1.2345 in
-  let Float_with_digits (i1, d1, d_num1) = devide_large_num_with_digits f1 in
+  let (Float_with_digits (i1, d1, d_num1)) = devide_large_num_with_digits f1 in
   i1 = (0, 0, 0, 1) && d1 = (0, 0, 9, 41) && 4 = d_num1
 ;;
 
