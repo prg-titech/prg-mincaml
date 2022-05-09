@@ -299,7 +299,6 @@ and compile_exp data fname env = function
   | CallDir (Id.L var, args, fargs) ->
     Printf.eprintf "CALL %s %d\n" var (List.length fargs);
     (args @ fargs
-    |> sort_by_id
     |> List.fold_left
          (fun (rev_code_list, env) v ->
            Debug.print_env env;
@@ -314,7 +313,6 @@ and compile_exp data fname env = function
      else [ CALL; Lref var; Literal (List.length (args @ fargs)) ])
   | CallCls (var, args, fargs) ->
     (args @ fargs
-    |> sort_by_id
     |> List.fold_left
          (fun (rev_code_list, env) v ->
            Debug.print_env env;
