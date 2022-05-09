@@ -173,7 +173,7 @@ let rec compile_t data fname env =
           ; Literal new_arity
           ])
       else [])
-      @ [ JUMP; Lref fname ]
+      @ [ JUMP; Lref fname; NOP; NOP; NOP ]
     else compile_exp data fname env e
   | Ans e -> compile_exp data fname env e
   | Let ((x, _), exp, t) ->
@@ -220,9 +220,9 @@ and compile_exp data fname env = function
     compile_id_or_imm env (V x)
     @ compile_id_or_imm (shift_env env) y
     @ [ EQ ]
-    @ [ JUMP_IF; Lref l1 ]
+    @ [ JUMP_IF; Lref l1; NOP; NOP; NOP ]
     @ compile_t data fname env then_exp
-    @ [ JUMP; Lref l2 ]
+    @ [ JUMP; Lref l2;  NOP; NOP; NOP ]
     @ [ Ldef l1 ]
     @ compile_t data fname env else_exp
     @ [ Ldef l2 ]
@@ -231,9 +231,9 @@ and compile_exp data fname env = function
     compile_id_or_imm env (V x)
     @ compile_id_or_imm (shift_env env) (V y)
     @ [ EQ ]
-    @ [ JUMP_IF; Lref l1 ]
+    @ [ JUMP_IF; Lref l1; NOP; NOP; NOP ]
     @ compile_t data fname env then_exp
-    @ [ JUMP; Lref l2 ]
+    @ [ JUMP; Lref l2; NOP; NOP; NOP ]
     @ [ Ldef l1 ]
     @ compile_t data fname env else_exp
     @ [ Ldef l2 ]
@@ -242,9 +242,9 @@ and compile_exp data fname env = function
     compile_id_or_imm env (V x)
     @ compile_id_or_imm (shift_env env) y
     @ [ LT ]
-    @ [ JUMP_IF; Lref l1 ]
+    @ [ JUMP_IF; Lref l1; NOP; NOP; NOP ]
     @ compile_t data fname env else_exp
-    @ [ JUMP; Lref l2 ]
+    @ [ JUMP; Lref l2; NOP; NOP; NOP ]
     @ [ Ldef l1 ]
     @ compile_t data fname env then_exp
     @ [ Ldef l2 ]
@@ -253,9 +253,9 @@ and compile_exp data fname env = function
     compile_id_or_imm env (V x)
     @ compile_id_or_imm (shift_env env) (V y)
     @ [ LT ]
-    @ [ JUMP_IF; Lref l1 ]
+    @ [ JUMP_IF; Lref l1; NOP; NOP; NOP ]
     @ compile_t data fname env else_exp
-    @ [ JUMP; Lref l2 ]
+    @ [ JUMP; Lref l2; NOP; NOP; NOP ]
     @ [ Ldef l1 ]
     @ compile_t data fname env then_exp
     @ [ Ldef l2 ]
@@ -264,9 +264,9 @@ and compile_exp data fname env = function
     compile_id_or_imm env (V x)
     @ compile_id_or_imm (shift_env env) y
     @ [ GT ]
-    @ [ JUMP_IF; Lref l1 ]
+    @ [ JUMP_IF; Lref l1; NOP; NOP; NOP ]
     @ compile_t data fname env else_exp
-    @ [ JUMP; Lref l2 ]
+    @ [ JUMP; Lref l2; NOP; NOP; NOP ]
     @ [ Ldef l1 ]
     @ compile_t data fname env then_exp
     @ [ Ldef l2 ]
@@ -344,41 +344,33 @@ let make_label_env instrs =
        instrs)
 ;;
 
-let resolve_n_opt inst =
-  match inst with
-  | Literal n ->
-    if n > 255
-    then (
-      let a, b, c, d = devide_large_num n in
-      Some (Literal a, Literal b, Literal c, Literal d))
-    else None
-  | _ -> None
-;;
-
-let change_to_n_inst inst =
-  match inst with
-  | CALL -> CALL_N
-  | CALL_ASSEMBLER -> CALL_N_ASSEMBLER
-  | JUMP -> JUMP_N
-  | JUMP_IF -> JUMP_IF_N
-  | _ -> inst
-;;
-
-let rec resolve_n_insts insts =
-  match insts with
+let rec resolve_n_instrs = function
   | [] -> []
-  | [ hd ] -> [ hd ]
-  | hd1 :: hd2 :: tl ->
-    (match hd1 with
-    | JUMP | JUMP_IF | CALL ->
-      (match hd2 with
-      | Literal n when n > 255 ->
-        let a, b, c, d = devide_large_num n in
-        [ change_to_n_inst hd1 ]
-        @ [ Literal a; Literal b; Literal c; Literal d ]
-        @ resolve_n_insts tl
-      | _ -> hd1 :: hd2 :: resolve_n_insts tl)
-    | _ -> hd1 :: resolve_n_insts (hd2 :: tl))
+  | JUMP :: Literal n :: NOP :: NOP :: NOP :: tl ->
+    let a, b, c, d = devide_large_num n in
+    JUMP_N
+    :: Literal a
+    :: Literal b
+    :: Literal c
+    :: Literal d
+    :: resolve_n_instrs tl
+  | JUMP_IF :: Literal n :: NOP :: NOP :: NOP :: tl ->
+    let a, b, c, d = devide_large_num n in
+    JUMP_IF_N
+    :: Literal a
+    :: Literal b
+    :: Literal c
+    :: Literal d
+    :: resolve_n_instrs tl
+  | CALL :: Literal n :: NOP :: NOP :: NOP :: tl ->
+    let a, b, c, d = devide_large_num n in
+    CALL_N
+    :: Literal a
+    :: Literal b
+    :: Literal c
+    :: Literal d
+    :: resolve_n_instrs tl
+  | hd :: tl -> hd :: resolve_n_instrs tl
 ;;
 
 let assoc_if subst elm = try List.assoc elm subst with Not_found -> elm
@@ -387,8 +379,8 @@ let resolve_labels instrs =
   let lenv = make_label_env instrs in
   instrs
   |> List.map (fun instr -> assoc_if lenv instr)
+  |> resolve_n_instrs
   |> List.filter (function Ldef _ -> false | _ -> true)
-  |> resolve_n_insts
 ;;
 
 let compile_fun_body data fenv name arity annot exp env =
